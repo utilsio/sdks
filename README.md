@@ -19,10 +19,6 @@ pnpm add @utilsio/react
 # bun add @utilsio/react
 ```
 
-### Vue SDK (Coming Soon)
-
-Located in `vue/` (in development)
-
 ## Development
 
 This repository uses a workspace structure to manage multiple SDK implementations:
