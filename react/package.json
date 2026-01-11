@@ -1,0 +1,39 @@
+{
+  "name": "@utilsio/react",
+  "version": "0.1.0",
+  "description": "Official React SDK for integrating utilsio crypto subscriptions",
+  "keywords": ["react", "crypto", "subscriptions", "polygon", "superfluid", "utilsio"],
+  "author": "utilsio",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/utilsio/sdks.git",
+    "directory": "react"
+  },
+  "type": "module",
+  "exports": {
+    "./server": {
+      "types": "./server/dist/index.d.ts",
+      "import": "./server/dist/index.js"
+    },
+    "./client": {
+      "types": "./client/dist/index.d.ts",
+      "import": "./client/dist/index.js"
+    }
+  },
+  "files": [
+    "server/dist",
+    "client/dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun run build:server && bun run build:client",
+    "build:server": "tsc -p server/tsconfig.build.json",
+    "build:client": "tsc -p client/tsconfig.build.json",
+    "clean": "rm -rf server/dist client/dist",
+    "pack:local": "bun run build && bun pm pack",
+    "update-template": "bun run pack:local && cp utilsio-react-0.1.0.tgz ../../templates/nextjs/",
+    "prepublishOnly": "bun run build"
+  }
+}
