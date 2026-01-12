@@ -31,14 +31,6 @@ jobs:
           TAG=${{ github.ref_name }}
           PACKAGE=$(echo "$TAG" | sed 's/-v.*//')
           echo "package=$PACKAGE" >> $GITHUB_OUTPUT
-          echo "Extracted package: $PACKAGE"
-
-      - name: Debug - Verify types installed
-        run: |
-          echo "Checking for @types/node..."
-          ls -la node_modules/@types/ 2>/dev/null || echo "@types directory not found"
-          echo "Checking package.json..."
-          cat react/package.json | grep -A5 devDependencies || echo "devDependencies not found"
 
       - name: Build package
         run: cd ${{ steps.extract.outputs.package }} && bun run build
