@@ -1,0 +1,43 @@
+import crypto from "crypto";
+export const DEFAULT_SCRYPT_PARAMS = {
+    N: 1 << 14,
+    r: 8,
+    p: 1,
+    keyLen: 32,
+};
+export function deriveAppHashHex({ appSecret, salt, params }) {
+    if (!appSecret)
+        throw new Error("appSecret is required");
+    if (!salt)
+        throw new Error("salt is required");
+    const merged = { ...DEFAULT_SCRYPT_PARAMS, ...(params || {}) };
+    // Convert hex salt string to Buffer (salt is stored as hex in database)
+    const saltBuffer = Buffer.from(salt, "hex");
+    const derived = crypto.scryptSync(appSecret, saltBuffer, merged.keyLen, {
+        N: merged.N,
+        r: merged.r,
+        p: merged.p,
+    });
+    return derived.toString("hex");
+}
+export function buildSignatureMessage({ deviceId, appId, timestamp, additionalData }) {
+    if (!deviceId)
+        throw new Error("deviceId is required");
+    if (!appId)
+        throw new Error("appId is required");
+    if (timestamp === undefined || timestamp === null || timestamp === "")
+        throw new Error("timestamp is required");
+    const ts = String(timestamp);
+    return `${deviceId}-${appId}-${ts}${additionalData ? `-${additionalData}` : ""}`;
+}
+export function signRequest({ appHashHex, deviceId, appId, timestamp, additionalData }) {
+    if (!appHashHex)
+        throw new Error("appHashHex is required");
+    const message = buildSignatureMessage({ deviceId, appId, timestamp, additionalData });
+    const hmac = crypto.createHmac("sha256", appHashHex);
+    hmac.update(message);
+    return hmac.digest("hex");
+}
+export function nowUnixSeconds() {
+    return Math.floor(Date.now() / 1000);
+}
