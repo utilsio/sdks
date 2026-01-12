@@ -4,14 +4,14 @@
   "workspaces": {
     "": {
       "name": "@utilsio/sdks",
-    },
-    "react": {
-      "name": "@utilsio/react",
-      "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^20",
         "typescript": "^5",
       },
+    },
+    "react": {
+      "name": "@utilsio/react",
+      "version": "0.1.0",
     },
   },
   "packages": {
