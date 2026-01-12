@@ -24,6 +24,9 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Upgrade npm for OIDC support
+        run: npm install -g npm@latest
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
 
@@ -47,7 +50,7 @@ jobs:
         run: cd ${{ steps.extract.outputs.package }} && npm publish --dry-run --access public
 
       - name: Publish to npm
-        run: cd ${{ steps.extract.outputs.package }} && npm publish --access public
+        run: cd ${{ steps.extract.outputs.package }} && npm publish --provenance --access public
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
