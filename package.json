@@ -4,8 +4,7 @@
   "description": "Official Utilsio SDKs for multiple frameworks",
   "private": true,
   "workspaces": [
-    "react",
-    "vue"
+    "react"
   ],
   "license": "Apache-2.0",
   "repository": {
