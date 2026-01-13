@@ -37,13 +37,14 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
                 return;
             if (data.type === "utilsio:embed:ready") {
                 setEmbedReady(true);
-                setLoading(false);
                 return;
             }
             if (data.type === "utilsio:embed:auth") {
                 setUser(data.user ?? null);
                 setDeviceId(data.deviceId ?? null);
-                setLoading(false);
+                // Don't set loading=false here - let the subscription fetch control loading state
+                // When deviceId is null, the useEffect will call refresh() which returns early and sets loading=false
+                // When deviceId exists, refresh() will fetch subscription and set loading=false when complete
             }
         };
         window.addEventListener("message", handler);
