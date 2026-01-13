@@ -42,5 +42,8 @@
     "pack:local": "bun run build && bun pm pack",
     "update-template": "bun run pack:local && cp utilsio-react-*.tgz ../../templates/nextjs/utilsio-react-latest.tgz",
     "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.7"
   }
 }
