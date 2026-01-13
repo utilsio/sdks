@@ -44,6 +44,8 @@
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
-    "@types/node": "^25.0.7"
+    "@types/node": "^25.0.7",
+    "@types/react": "^19.2.7",
+    "react": "^19.2.3"
   }
 }
