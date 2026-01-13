@@ -31,8 +31,7 @@
   "files": [
     "server/dist",
     "client/dist",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ],
   "scripts": {
     "build": "bun run build:server && bun run build:client",
