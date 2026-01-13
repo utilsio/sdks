@@ -1,0 +1,75 @@
+name: Publish React SDK to npm
+
+on:
+  push:
+    tags:
+      - 'react-v*'      # react-v0.1.0, react-v0.1.1, etc.
+
+permissions:
+  id-token: write       # Required for OIDC token generation
+  contents: write       # Required for creating GitHub releases
+
+jobs:
+  publish:
+    name: Publish React SDK to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Upgrade npm for OIDC support
+        run: npm install -g npm@latest
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Extract version from tag
+        id: extract
+        run: |
+          TAG=${{ github.ref_name }}
+          # Extract version from react-v0.1.4 -> 0.1.4
+          VERSION=$(echo "$TAG" | sed 's/react-v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "package_name=@utilsio/react" >> $GITHUB_OUTPUT
+
+      - name: Build React SDK
+        run: cd react && bun run build
+
+      - name: List files to be published
+        run: cd react && ls -la
+
+      - name: Check tarball contents (dry-run)
+        run: cd react && npm publish --dry-run --access public
+
+      - name: Publish React SDK to npm
+        run: cd react && npm publish --provenance --access public
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            Published **@utilsio/react** to npm
+
+            **Version:** ${{ steps.extract.outputs.version }}
+            **Package:** https://www.npmjs.com/package/${{ steps.extract.outputs.package_name }}
+            **GitHub:** https://github.com/utilsio/sdks/releases/tag/${{ github.ref_name }}
+
+            ### Installation
+            ```bash
+            npm install ${{ steps.extract.outputs.package_name }}
+            ```
+
+            ### Links
+            - [npm package](https://www.npmjs.com/package/${{ steps.extract.outputs.package_name }})
+            - [GitHub repository](https://github.com/utilsio/sdks)
+          draft: false
+          prerelease: false

@@ -1,8 +1,15 @@
 {
   "name": "@utilsio/react",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Official React SDK for integrating utilsio crypto subscriptions",
-  "keywords": ["react", "crypto", "subscriptions", "polygon", "superfluid", "utilsio"],
+  "keywords": [
+    "react",
+    "crypto",
+    "subscriptions",
+    "polygon",
+    "superfluid",
+    "utilsio"
+  ],
   "author": "utilsio",
   "license": "Apache-2.0",
   "repository": {
