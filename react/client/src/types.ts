@@ -10,6 +10,8 @@ export type UtilsioSubscription = {
 	id: string;
 	amountPerDay: string;
 	createdAt: string;
+	cancelledAt: string | null;
+	isActive: boolean;
 };
 
 export type UtilsioState = {

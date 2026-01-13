@@ -79,8 +79,18 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         const payload = (await res.json());
         if (!payload.success)
             throw new Error(payload.error || "Failed to get subscription");
-        setCurrentSubscription(payload.subscription);
-        return payload.subscription;
+        // Filter out cancelled subscriptions - treat them as non-existent
+        if (payload.subscription && !payload.subscription.cancelledAt) {
+            const activeSubscription = {
+                ...payload.subscription,
+                cancelledAt: null,
+                isActive: true,
+            };
+            setCurrentSubscription(activeSubscription);
+            return activeSubscription;
+        }
+        setCurrentSubscription(null);
+        return null;
     }, [deviceId, getAuthHeadersAction, subscriptionUrl]);
     const refresh = useCallback(async () => {
         setLoading(true);
