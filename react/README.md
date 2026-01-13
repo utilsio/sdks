@@ -383,7 +383,7 @@ Apache-2.0
 
 ## Links
 
-- **Documentation**: [docs.utilsio.dev](https://docs.utilsio.dev)
+- **Documentation**: [utilsio.dev/docs](https://utilsio.dev/docs)
 - **Template**: [github.com/53gf4u1t/utilsio-templates](https://github.com/53gf4u1t/utilsio-templates)
 - **SDK Repository**: [github.com/53gf4u1t/utilsio-sdks](https://github.com/53gf4u1t/utilsio-sdks)
 - **npm Package**: [@utilsio/react](https://www.npmjs.com/package/@utilsio/react)

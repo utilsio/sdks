@@ -1,6 +1,6 @@
 {
   "name": "@utilsio/sdks",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Official Utilsio SDKs for multiple frameworks",
   "private": true,
   "workspaces": [
