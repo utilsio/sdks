@@ -50,7 +50,7 @@ echo -e "${BLUE}SDK Release: $SDK_NAME ($VERSION_TYPE)${NC}"
 echo -e "${BLUE}========================================${NC}"
 
 # Step 1: Check git status
-echo -e "\n${YELLOW}[1/5]${NC} Checking git status..."
+echo -e "\n${YELLOW}[1/6]${NC} Checking git status..."
 if [ -n "$(git status --porcelain)" ]; then
     echo -e "${RED}Error: Working directory is not clean${NC}"
     echo "Please commit or stash all changes first"
@@ -60,7 +60,7 @@ fi
 echo -e "${GREEN}✓ Working directory clean${NC}"
 
 # Step 2: Navigate to SDK directory and check package.json
-echo -e "\n${YELLOW}[2/5]${NC} Checking package.json..."
+echo -e "\n${YELLOW}[2/6]${NC} Checking package.json..."
 if [ ! -f "./$SDK_NAME/package.json" ]; then
     echo -e "${RED}Error: package.json not found in ./$SDK_NAME${NC}"
     exit 1
@@ -69,25 +69,49 @@ fi
 CURRENT_VERSION=$(grep '"version"' "./$SDK_NAME/package.json" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 echo -e "${GREEN}✓ Current version: $CURRENT_VERSION${NC}"
 
-# Step 3: Run npm version from SDK directory
-echo -e "\n${YELLOW}[3/5]${NC} Bumping version ($VERSION_TYPE)..."
-cd "./$SDK_NAME"
+# Step 3: Calculate new version (manual - avoids npm version hanging with bun)
+echo -e "\n${YELLOW}[3/6]${NC} Calculating new version..."
 
-# This will:
-# 1. Bump version in package.json
-# 2. Create a git commit in the packages repo
-# 3. Create a git tag with prefix react-v (configured in .npmrc)
-npm version "$VERSION_TYPE" --git-tag-version
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+MAJOR=${MAJOR:-0}
+MINOR=${MINOR:-0}
+PATCH=${PATCH:-0}
 
-NEW_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+case "$VERSION_TYPE" in
+    patch)
+        PATCH=$((PATCH + 1))
+        ;;
+    minor)
+        MINOR=$((MINOR + 1))
+        PATCH=0
+        ;;
+    major)
+        MAJOR=$((MAJOR + 1))
+        MINOR=0
+        PATCH=0
+        ;;
+esac
+
+NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 TAG_NAME="${SDK_NAME}-v${NEW_VERSION}"
 
-echo -e "${GREEN}✓ Version bumped: $CURRENT_VERSION → $NEW_VERSION${NC}"
-echo -e "${GREEN}✓ Tag created: $TAG_NAME${NC}"
+echo -e "${GREEN}✓ Version bump: $CURRENT_VERSION → $NEW_VERSION${NC}"
 
-# Step 4: Go back to packages root and push
-echo -e "\n${YELLOW}[4/5]${NC} Pushing to remote..."
-cd ..
+# Step 4: Update package.json version manually
+echo -e "\n${YELLOW}[4/6]${NC} Updating package.json..."
+sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/g" "./$SDK_NAME/package.json"
+echo -e "${GREEN}✓ Updated package.json to $NEW_VERSION${NC}"
+
+# Step 5: Create git commit and tag
+echo -e "\n${YELLOW}[5/6]${NC} Creating git commit and tag..."
+git add "./$SDK_NAME/package.json"
+git commit -m "chore(${SDK_NAME}): bump version to $NEW_VERSION"
+git tag -a "$TAG_NAME" -m "$SDK_NAME $NEW_VERSION"
+
+echo -e "${GREEN}✓ Created commit and tag: $TAG_NAME${NC}"
+
+# Step 6: Push to remote
+echo -e "\n${YELLOW}[6/6]${NC} Pushing to remote..."
 
 git push origin main
 echo -e "${GREEN}✓ Pushed commits to origin/main${NC}"
@@ -95,22 +119,23 @@ echo -e "${GREEN}✓ Pushed commits to origin/main${NC}"
 git push origin "$TAG_NAME"
 echo -e "${GREEN}✓ Pushed tag $TAG_NAME to origin${NC}"
 
-# Step 5: Summary
-echo -e "\n${YELLOW}[5/5]${NC} Release complete!"
+# Summary
 echo -e "\n${GREEN}========================================${NC}"
-echo -e "${GREEN}Summary:${NC}"
-echo -e "  SDK:          $SDK_NAME"
-echo -e "  New Version:  $NEW_VERSION"
-echo -e "  Tag:          $TAG_NAME"
-echo -e "  Status:       ✓ Pushed to remote${NC}"
+echo -e "${GREEN}✓ Release complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
-
-echo -e "\n${BLUE}Next steps:${NC}"
+echo ""
+echo -e "SDK:          ${BLUE}$SDK_NAME${NC}"
+echo -e "New Version:  ${BLUE}$NEW_VERSION${NC}"
+echo -e "Tag:          ${BLUE}$TAG_NAME${NC}"
+echo -e "Status:       ${GREEN}✓ Pushed to remote${NC}"
+echo ""
+echo -e "${BLUE}Next steps:${NC}"
 echo "1. Go to main repo and update submodule reference:"
 echo "   cd /Users/53gf4u1t/Development/utilsio_versions/utilsio"
 echo "   git add packages"
-echo "   git commit -m \"chore: update packages to React SDK v$NEW_VERSION\""
+echo "   git commit -m \"chore: update packages to ${SDK_NAME^} SDK v$NEW_VERSION\""
 echo "   git push origin main"
 echo ""
-echo "2. The publishReact.yml workflow will automatically trigger on the tag"
-echo "   and publish to npm registry"
+echo "2. The publish${SDK_NAME^}.yml workflow will automatically trigger on the tag"
+echo "   and publish to the appropriate registry"
+

@@ -40,7 +40,7 @@
     "build:client": "tsc -p client/tsconfig.build.json",
     "clean": "rm -rf server/dist client/dist",
     "pack:local": "bun run build && bun pm pack",
-    "update-template": "bun run pack:local && cp utilsio-react-0.1.0.tgz ../../templates/nextjs/",
+    "update-template": "bun run pack:local && cp utilsio-react-*.tgz ../../templates/nextjs/utilsio-react-latest.tgz",
     "prepublishOnly": "bun run build"
   }
 }
