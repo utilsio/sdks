@@ -1,16 +1,15 @@
 #!/bin/bash
 
-# Git release script for SDK packages
-# Handles git tagging and pushing only
-# Version bumping is handled by SDK-specific install.sh scripts
+# Release script for SDK packages
+# Handles version bumping (via version.sh) + git tagging/pushing
+# Language-agnostic: works with npm, pip, cargo, etc.
 #
-# Usage: ./release-sdk.sh <sdk-name>
-# Example: ./release-sdk.sh react
-#
-# Prerequisites:
-# 1. Run ./<sdk-name>/install.sh patch|minor|major to bump version
-# 2. Commit the version change (install.sh does this)
-# 3. Run ./release-sdk.sh <sdk-name> to create tag and push
+# Usage: ./release-sdk.sh <sdk-name> [version-args...]
+# Examples:
+#   ./release-sdk.sh react patch              # Bump 0.1.3 → 0.1.4, tag, push
+#   ./release-sdk.sh react minor              # Bump 0.1.3 → 0.2.0, tag, push
+#   ./release-sdk.sh python minor             # Works for Python (future SDK)
+#   ./release-sdk.sh go major                 # Works for Go (future SDK)
 
 set -e  # Exit on any error
 
@@ -22,20 +21,27 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Check arguments
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     echo -e "${RED}Error: Invalid arguments${NC}"
-    echo "Usage: ./release-sdk.sh <sdk-name>"
+    echo "Usage: ./release-sdk.sh <sdk-name> [version-args...]"
     echo ""
-    echo "Example:"
-    echo "  ./release-sdk.sh react"
+    echo "Examples:"
+    echo "  ./release-sdk.sh react patch              # npm SDK"
+    echo "  ./release-sdk.sh python minor             # pip SDK (future)"
+    echo "  ./release-sdk.sh go major                 # Go SDK (future)"
     echo ""
-    echo "Prerequisites:"
-    echo "  1. Run ./react/install.sh patch|minor|major"
-    echo "  2. Run ./release-sdk.sh react"
+    echo "What this script does:"
+    echo "  1. Calls ./<sdk-name>/version.sh with any additional args"
+    echo "  2. Reads new version from version file"
+    echo "  3. Creates annotated git tag: <sdk-name>-v<version>"
+    echo "  4. Pushes tag to remote"
+    echo "  5. GitHub Actions workflow auto-publishes"
     exit 1
 fi
 
 SDK_NAME=$1
+shift  # Remove sdk-name, keep remaining args for version.sh
+VERSION_ARGS="$@"
 
 # Validate SDK exists
 if [ ! -d "./$SDK_NAME" ]; then
@@ -44,21 +50,48 @@ if [ ! -d "./$SDK_NAME" ]; then
 fi
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}SDK Git Release: $SDK_NAME${NC}"
+echo -e "${BLUE}SDK Release: $SDK_NAME${NC}"
 echo -e "${BLUE}========================================${NC}"
 
-# Step 1: Check git status
-echo -e "\n${YELLOW}[1/4]${NC} Checking git status..."
+# Step 1: Validate SDK exists
+echo -e "\n${YELLOW}[1/5]${NC} Validating SDK..."
+if [ ! -d "./$SDK_NAME" ]; then
+    echo -e "${RED}Error: SDK '$SDK_NAME' not found at ./$SDK_NAME${NC}"
+    exit 1
+fi
+
+if [ ! -f "./$SDK_NAME/version.sh" ]; then
+    echo -e "${RED}Error: version.sh not found in ./$SDK_NAME${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ SDK found${NC}"
+
+# Step 2: Run version.sh with passed arguments
+echo -e "\n${YELLOW}[2/5]${NC} Running version bump script..."
+if [ -z "$VERSION_ARGS" ]; then
+    echo -e "${RED}Error: No version arguments provided${NC}"
+    echo "Usage: ./release-sdk.sh <sdk-name> <version-args>"
+    echo "Example: ./release-sdk.sh react patch"
+    exit 1
+fi
+
+cd "./$SDK_NAME"
+./version.sh $VERSION_ARGS
+cd ..
+
+echo -e "${GREEN}✓ Version bump complete${NC}"
+
+# Step 3: Check git status
+echo -e "\n${YELLOW}[3/5]${NC} Checking git status..."
 if [ -n "$(git status --porcelain)" ]; then
-    echo -e "${RED}Error: Working directory is not clean${NC}"
-    echo "Please commit all changes first (or run $SDK_NAME/install.sh)"
+    echo -e "${RED}Error: Working directory is not clean after version bump${NC}"
     git status
     exit 1
 fi
 echo -e "${GREEN}✓ Working directory clean${NC}"
 
-# Step 2: Read version from SDK's version file
-echo -e "\n${YELLOW}[2/4]${NC} Reading version..."
+# Step 4: Read version and create tag
+echo -e "\n${YELLOW}[4/5]${NC} Creating git tag..."
 if [ ! -f "./$SDK_NAME/package.json" ]; then
     echo -e "${RED}Error: package.json not found in ./$SDK_NAME${NC}"
     exit 1
@@ -71,16 +104,11 @@ if [ -z "$VERSION" ]; then
 fi
 
 TAG_NAME="${SDK_NAME}-v${VERSION}"
-echo -e "${GREEN}✓ Version: $VERSION${NC}"
-echo -e "${GREEN}✓ Tag: $TAG_NAME${NC}"
-
-# Step 3: Create and push tag
-echo -e "\n${YELLOW}[3/4]${NC} Creating git tag..."
 git tag -a "$TAG_NAME" -m "$SDK_NAME $VERSION"
 echo -e "${GREEN}✓ Created tag: $TAG_NAME${NC}"
 
-# Step 4: Push to remote
-echo -e "\n${YELLOW}[4/4]${NC} Pushing to remote..."
+# Step 5: Push to remote
+echo -e "\n${YELLOW}[5/5]${NC} Pushing to remote..."
 git push origin "$TAG_NAME"
 echo -e "${GREEN}✓ Pushed tag to origin${NC}"
 
@@ -94,12 +122,12 @@ echo -e "Version:       ${BLUE}$VERSION${NC}"
 echo -e "Tag:           ${BLUE}$TAG_NAME${NC}"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
-echo "1. Go to main repo and update submodule reference:"
+echo "1. Update main repo submodule reference:"
 echo "   cd /Users/53gf4u1t/Development/utilsio_versions/utilsio"
 echo "   git add packages"
 echo "   git commit -m \"chore: update packages to $SDK_NAME SDK v$VERSION\""
 echo "   git push origin main"
 echo ""
-echo "2. The publish$SDK_NAME.yml workflow will automatically trigger on the tag"
+echo "2. GitHub Actions workflow will automatically trigger on the tag"
 echo "   and publish to the appropriate registry"
 
