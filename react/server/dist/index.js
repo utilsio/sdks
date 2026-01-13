@@ -5,6 +5,11 @@ export const DEFAULT_SCRYPT_PARAMS = {
     p: 1,
     keyLen: 32,
 };
+/**
+ * Derives an app hash using scrypt key derivation
+ * Exported for use in server-side authentication workflows
+ * Used to create deterministic hashes from app secrets for secure verification
+ */
 export function deriveAppHashHex({ appSecret, salt, params }) {
     if (!appSecret)
         throw new Error("appSecret is required");
@@ -30,6 +35,11 @@ export function buildSignatureMessage({ deviceId, appId, timestamp, additionalDa
     const ts = String(timestamp);
     return `${deviceId}-${appId}-${ts}${additionalData ? `-${additionalData}` : ""}`;
 }
+/**
+ * Signs a request with HMAC-SHA256
+ * Exported for use in client-server authentication workflows
+ * Creates cryptographic signatures for request verification
+ */
 export function signRequest({ appHashHex, deviceId, appId, timestamp, additionalData }) {
     if (!appHashHex)
         throw new Error("appHashHex is required");
@@ -38,6 +48,11 @@ export function signRequest({ appHashHex, deviceId, appId, timestamp, additional
     hmac.update(message);
     return hmac.digest("hex");
 }
+/**
+ * Gets current time as Unix timestamp in seconds
+ * Exported for use in request signing and timestamp validation
+ * Provides consistent time reference across requests
+ */
 export function nowUnixSeconds() {
     return Math.floor(Date.now() / 1000);
 }
