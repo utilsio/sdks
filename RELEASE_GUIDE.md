@@ -312,3 +312,75 @@ git push origin --delete v0.1.4
 3. Everything propagates automatically!
 
 **That's it! 🚀**
+
+---
+
+## 🔧 Version Management & Template Fixes
+
+### **Issue 1: npm version Hanging** ✅
+**Problem:** Running `./release-sdk.sh react patch` would hang indefinitely at the version calculation step.
+
+**Root Cause:** Bun's npm compatibility layer has issues with the `npm version` command, causing it to hang indefinitely.
+
+**Solution:** Replaced `npm version` with manual semantic versioning calculation in bash.
+
+**Impact:** 
+- `./release-sdk.sh react patch` now completes in seconds
+- No more waiting for npm version command
+- Works reliably with bun
+
+### **Issue 2: Hardcoded Version in update-template Script** ✅
+**Problem:** The `update-template` script hardcoded `utilsio-react-0.1.0.tgz`, which becomes outdated when versions change.
+
+**Old Code:**
+```json
+"update-template": "bun run pack:local && cp utilsio-react-0.1.0.tgz ../../templates/nextjs/"
+```
+
+**New Code:**
+```json
+"update-template": "bun run pack:local && cp utilsio-react-*.tgz ../../templates/nextjs/utilsio-react-latest.tgz"
+```
+
+**Impact:**
+- Templates automatically get the latest built SDK version
+- No more hardcoded version numbers to update
+- Glob matching works with any semantic version (0.1.4, 0.2.0, 1.0.0, etc.)
+
+### **Issue 3: Templates Version Compatibility** ✅
+**Status:** templates/nextjs/package.json already uses `"@utilsio/react": ">=0.1.0"`, which:
+- Works with any version ≥ 0.1.0
+- Automatically uses latest compatible version
+- No changes needed
+
+### **Version Calculation Logic**
+
+The script now manually calculates versions:
+
+```bash
+# Parse current version into components
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+# Apply version bump based on type
+case "$VERSION_TYPE" in
+    patch) PATCH=$((PATCH + 1)) ;;          # 0.1.3 → 0.1.4
+    minor) MINOR=$((MINOR + 1)); PATCH=0 ;; # 0.1.3 → 0.2.0
+    major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;; # 0.1.3 → 1.0.0
+esac
+```
+
+Tested & verified:
+- ✓ 0.1.3 (patch) → 0.1.4
+- ✓ 0.1.3 (minor) → 0.2.0
+- ✓ 0.1.3 (major) → 1.0.0
+
+### **Future SDK Scalability**
+
+When adding Python, Go, or other SDKs:
+1. Each gets its own directory (packages/python/, packages/go/)
+2. Each has own .npmrc or package manager config
+3. Version management automatically works for all SDKs
+4. No hardcoded versions anywhere
+5. Templates use version ranges (>=0.1.0) for flexibility
+
+**Everything is now production-ready!** ✅
