@@ -384,7 +384,7 @@ Apache-2.0
 ## Links
 
 - **Documentation**: [utilsio.dev/docs](https://utilsio.dev/docs)
-- **Template**: [github.com/53gf4u1t/utilsio-templates](https://github.com/53gf4u1t/utilsio-templates)
-- **SDK Repository**: [github.com/53gf4u1t/utilsio-sdks](https://github.com/53gf4u1t/utilsio-sdks)
+- **Template**: [github.com/utilsio/templates](https://github.com/utilsio/templates)
+- **SDK Repository**: [github.com/utilsio/sdks](https://github.com/utilsio/sdks)
 - **npm Package**: [@utilsio/react](https://www.npmjs.com/package/@utilsio/react)
-- **Issues**: [github.com/53gf4u1t/utilsio-sdks/issues](https://github.com/53gf4u1t/utilsio-sdks/issues)
+- **Issues**: [github.com/utilsio/sdks/issues](https://github.com/utilsio/sdks/issues)

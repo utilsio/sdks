@@ -148,7 +148,7 @@ Tag:           react-v0.1.4
 
 Next steps:
 1. Update main repo submodule reference:
-   cd /Users/53gf4u1t/Development/utilsio_versions/utilsio
+   cd $(git rev-parse --show-toplevel)
    git add packages
    git commit -m "chore: update packages to react SDK v0.1.4"
    git push origin main
@@ -188,7 +188,7 @@ cd packages
 # - Pushes commit and tag to remote
 
 # 2. Update main repository with submodule reference
-cd /Users/53gf4u1t/Development/utilsio_versions/utilsio
+cd $(git rev-parse --show-toplevel)
 git add packages
 git commit -m "chore: update packages to react SDK v0.1.4"
 git push origin main
