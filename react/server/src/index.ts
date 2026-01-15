@@ -10,7 +10,6 @@ export type UtilsioScryptParams = {
 export type DeriveKeyInput = {
 	appSecret: string;
 	salt: string;
-	params?: Partial<UtilsioScryptParams>;
 };
 
 export type SignRequestInput = {
@@ -32,19 +31,17 @@ export const DEFAULT_SCRYPT_PARAMS: UtilsioScryptParams = {
  * Exported for use in server-side authentication workflows
  * Used to create deterministic hashes from app secrets for secure verification
  */
-export function deriveAppHashHex({appSecret, salt, params}: DeriveKeyInput): string {
+export function deriveAppHashHex({appSecret, salt}: DeriveKeyInput): string {
 	if (!appSecret) throw new Error("appSecret is required");
 	if (!salt) throw new Error("salt is required");
-
-	const merged = {...DEFAULT_SCRYPT_PARAMS, ...(params || {})};
 
 	// Convert hex salt string to Buffer (salt is stored as hex in database)
 	const saltBuffer = Buffer.from(salt, "hex");
 
-	const derived = crypto.scryptSync(appSecret, saltBuffer, merged.keyLen, {
-		N: merged.N,
-		r: merged.r,
-		p: merged.p,
+	const derived = crypto.scryptSync(appSecret, saltBuffer, DEFAULT_SCRYPT_PARAMS.keyLen, {
+		N: DEFAULT_SCRYPT_PARAMS.N,
+		r: DEFAULT_SCRYPT_PARAMS.r,
+		p: DEFAULT_SCRYPT_PARAMS.p,
 	});
 
 	return derived.toString("hex");
