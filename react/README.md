@@ -19,48 +19,91 @@ Visit the [utilsio creator dashboard](https://utilsio.dev/creator/apps) to creat
 
 ### 2. Server-Side Setup
 
-Create an API endpoint to sign requests. The signature proves to utilsio that requests come from your authorized app.
+Create server actions to sign requests. The signature proves to utilsio that requests come from your authorized app.
 
 ```typescript
-// app/api/sign/route.ts
-import { deriveAppHashHex, signRequest, nowUnixSeconds } from '@utilsio/react/server';
+// app/actions.ts
+'use server';
 
-// Derive the HMAC key once at startup (this is an expensive operation)
+import { deriveAppHashHex, signRequest } from '@utilsio/react/server';
+
+// Derive the HMAC key once at module load (expensive operation)
 const appHashHex = deriveAppHashHex({
   appSecret: process.env.UTILSIO_APP_SECRET!,
   salt: process.env.UTILSIO_APP_SALT!,
 });
 
-export async function POST(request: Request) {
-  const { deviceId, additionalData } = await request.json();
-  
-  const timestamp = nowUnixSeconds();
-  
+export async function getAuthHeadersAction(input: {
+  deviceId: string;
+  additionalData?: string;
+}) {
+  const timestamp = Date.now();
+
   const signature = signRequest({
     appHashHex,
-    deviceId,
+    deviceId: input.deviceId,
     appId: process.env.NEXT_PUBLIC_UTILSIO_APP_ID!,
     timestamp,
-    additionalData, // Optional: include if you need to verify additional context
+    additionalData: input.additionalData,
   });
-  
-  return Response.json({ signature, timestamp });
+
+  return { signature: signature, timestamp: String(timestamp) };
 }
 ```
 
-### 3. Client-Side Setup
+### 3. Safari Compatibility Endpoint
+
+Create a callback endpoint for Safari users (third-party cookies are blocked in iframes):
+
+```typescript
+// app/api/signature-callback/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { deriveAppHashHex, signRequest } from "@utilsio/react/server";
+
+const appHashHex = deriveAppHashHex({
+  appSecret: process.env.UTILSIO_APP_SECRET!,
+  salt: process.env.UTILSIO_APP_SALT!,
+});
+
+export async function POST(req: NextRequest) {
+  // Verify request origin
+  const origin = req.headers.get("X-utilsio-Origin");
+  if (origin !== "utilsio.dev") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  const { deviceId, appId, additionalData, timestamp } = await req.json();
+
+  const signature = signRequest({
+    appHashHex,
+    deviceId,
+    appId,
+    timestamp,
+    additionalData,
+  });
+
+  return NextResponse.json({ signature, timestamp });
+}
+```
+
+### 4. Client-Side Setup
 
 Wrap your app with `UtilsioProvider` to enable authentication and subscription management.
 
 ```typescript
 // app/layout.tsx
 import { UtilsioProvider } from '@utilsio/react/client';
+import { getAuthHeadersAction } from './actions';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <UtilsioProvider appId={process.env.NEXT_PUBLIC_UTILSIO_APP_ID!}>
+        <UtilsioProvider
+          appId={process.env.NEXT_PUBLIC_UTILSIO_APP_ID!}
+          utilsioBaseUrl="https://utilsio.dev"
+          getAuthHeadersAction={getAuthHeadersAction}
+        >
           {children}
         </UtilsioProvider>
       </body>
@@ -69,85 +112,66 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-### 4. Create Subscription Flow
+### 5. Subscribe and Cancel Flows
 
-Use the `useUtilsio` hook to access user information and create subscriptions.
+Use the `useUtilsio` hook to manage subscriptions.
 
 ```typescript
 // app/page.tsx
 'use client';
+
 import { useUtilsio } from '@utilsio/react/client';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export default function Page() {
-  const { user, deviceId, currentSubscription, loading, error, redirectToConfirm } = useUtilsio();
-  const [isSubscribing, setIsSubscribing] = useState(false);
-  
-  const handleSubscribe = async () => {
-    if (!deviceId) return;
-    
-    setIsSubscribing(true);
+  const { user, currentSubscription, loading, redirectToConfirm, cancelSubscription } = useUtilsio();
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleSubscribe = useCallback(() => {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+
+    redirectToConfirm({
+      appId: process.env.NEXT_PUBLIC_UTILSIO_APP_ID!,
+      appName: "My App",
+      amountPerDay: "1", // 1 POL per day
+      appUrl,
+      nextSuccess: `${appUrl}/success`,
+      nextCancelled: `${appUrl}/cancelled`,
+    });
+  }, [redirectToConfirm]);
+
+  const handleCancel = useCallback(async () => {
+    if (!currentSubscription) return;
+
+    setCancelling(true);
     try {
-      // Get signature from your server
-      const response = await fetch('/api/sign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId }),
-      });
-      
-      const { signature, timestamp } = await response.json();
-      
-      // Redirect to utilsio confirmation page
-      redirectToConfirm({
-        amountPerMonth: 1, // 1 POL per month
-        successUrl: `${window.location.origin}/success`,
-        cancelUrl: `${window.location.origin}/cancelled`,
-        signature,
-        timestamp,
-      });
-    } catch (error) {
-      console.error('Subscription error:', error);
-      setIsSubscribing(false);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+      await cancelSubscription([currentSubscription.id], appUrl);
+    } catch (err) {
+      console.error('Cancel failed:', err);
+    } finally {
+      setCancelling(false);
     }
-  };
-  
+  }, [currentSubscription, cancelSubscription]);
+
   if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
-  
+
   return (
     <div>
-      {user ? (
+      {currentSubscription ? (
         <div>
-          <p>Welcome, {user.email}</p>
-          {currentSubscription ? (
-            <p>Active subscription: {currentSubscription.amountPerMonth} POL/month</p>
-          ) : (
-            <button onClick={handleSubscribe} disabled={isSubscribing}>
-              {isSubscribing ? 'Processing...' : 'Subscribe (1 POL/month)'}
-            </button>
-          )}
+          <p>Active: {currentSubscription.amountPerDay} POL/day</p>
+          <button onClick={handleCancel} disabled={cancelling}>
+            {cancelling ? 'Cancelling...' : 'Cancel Subscription'}
+          </button>
         </div>
       ) : (
-        <p>Please log in to utilsio to subscribe</p>
+        <button onClick={handleSubscribe}>
+          Subscribe (1 POL/day)
+        </button>
       )}
     </div>
   );
-}
-```
-
-### 5. Handle Callbacks
-
-Create success and cancel pages for post-subscription redirects.
-
-```typescript
-// app/success/page.tsx
-export default function SuccessPage() {
-  return <div>Subscription successful! Thank you for subscribing.</div>;
-}
-
-// app/cancelled/page.tsx
-export default function CancelledPage() {
-  return <div>Subscription cancelled.</div>;
 }
 ```
 
@@ -165,6 +189,29 @@ NEXT_PUBLIC_UTILSIO_APP_ID=your_app_id_uuid_here
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
 ```
 
+## Safari Compatibility
+
+Safari blocks third-party cookies in iframes, preventing the SDK from reading `deviceId`. The solution uses server-side signature generation:
+
+### Subscribe Flow
+1. User clicks subscribe → SDK redirects to `utilsio.dev/subscription/init`
+2. utilsio.dev reads `deviceId` from first-party cookies
+3. Calls your `/api/signature-callback` endpoint
+4. Your server generates signature
+5. Redirects to confirmation page
+
+### Cancel Flow
+1. User clicks cancel → SDK makes DELETE request without deviceId/signature
+2. utilsio.dev reads `deviceId` from first-party cookies
+3. Calls your `/api/signature-callback` endpoint
+4. Your server generates signature
+5. utilsio.dev deletes subscription
+
+**Key Points:**
+- Always pass `appUrl` to `redirectToConfirm()` and `cancelSubscription()`
+- The `/api/signature-callback` endpoint handles both flows
+- No additional configuration needed - works automatically
+
 ## API Reference
 
 ### Server API (`@utilsio/react/server`)
@@ -179,7 +226,7 @@ Derives the HMAC key from your app credentials using scrypt (N=16384, r=8, p=1).
 
 **Returns:** `string` - Hex-encoded derived key for signing
 
-**Important:** This is a CPU-intensive operation. Call it **once** at application startup and reuse the result.
+**Important:** This is a CPU-intensive operation. Call it **once** at module load and reuse the result.
 
 ```typescript
 const appHashHex = deriveAppHashHex({
@@ -194,10 +241,10 @@ Signs an API request with HMAC-SHA256.
 
 **Parameters:**
 - `appHashHex: string` - Derived key from `deriveAppHashHex()`
-- `deviceId: string` - User's device ID from `useUtilsio()`
+- `deviceId: string` - User's device ID
 - `appId: string` - Your public app ID
-- `timestamp: number` - Unix timestamp in seconds
-- `additionalData?: string` - Optional additional context to include in signature
+- `timestamp: number` - Unix timestamp in milliseconds
+- `additionalData?: string` - Optional additional context (e.g., amountPerDay or subscriptionIds)
 
 **Returns:** `string` - Hex-encoded HMAC signature
 
@@ -206,18 +253,9 @@ const signature = signRequest({
   appHashHex,
   deviceId,
   appId: process.env.NEXT_PUBLIC_UTILSIO_APP_ID!,
-  timestamp: nowUnixSeconds(),
+  timestamp: Date.now(),
+  additionalData: "1", // amountPerDay for subscribe
 });
-```
-
-#### `nowUnixSeconds(): number`
-
-Returns the current Unix timestamp in seconds.
-
-**Returns:** `number` - Current timestamp
-
-```typescript
-const timestamp = nowUnixSeconds();
 ```
 
 ### Client API (`@utilsio/react/client`)
@@ -228,16 +266,16 @@ React context provider that manages authentication via a hidden iframe.
 
 **Props:**
 - `appId: string` - Your public app ID
+- `utilsioBaseUrl: string` - Base URL for utilsio (usually "https://utilsio.dev")
+- `getAuthHeadersAction: function` - Server action that generates signatures
 - `children: ReactNode` - Your app components
 
-**How it works:**
-1. Renders a hidden iframe pointing to `https://utilsio.dev/embed`
-2. The iframe checks for utilsio authentication cookies
-3. Posts user data and device ID to parent window via `postMessage`
-4. Provider makes this data available via `useUtilsio()` hook
-
 ```typescript
-<UtilsioProvider appId={process.env.NEXT_PUBLIC_UTILSIO_APP_ID!}>
+<UtilsioProvider
+  appId={process.env.NEXT_PUBLIC_UTILSIO_APP_ID!}
+  utilsioBaseUrl="https://utilsio.dev"
+  getAuthHeadersAction={getAuthHeadersAction}
+>
   {children}
 </UtilsioProvider>
 ```
@@ -249,133 +287,50 @@ Hook that provides utilsio state and actions. Must be used within a `UtilsioProv
 **Returns:**
 ```typescript
 {
-  user: User | null;                    // Current logged-in user
-  deviceId: string | null;              // User's device identifier
-  currentSubscription: Subscription | null; // Active subscription if any
-  loading: boolean;                     // True while loading user data
-  error: string | null;                 // Error message if authentication failed
-  refresh: () => Promise<void>;         // Manually refresh user data
-  redirectToConfirm: (params: RedirectParams) => void; // Redirect to subscription confirmation
+  user: User | null;
+  deviceId: string | null;
+  currentSubscription: Subscription | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  redirectToConfirm: (params: RedirectParams) => void;
+  cancelSubscription: (subscriptionIds: string[], appUrl?: string) => Promise<void>;
 }
 ```
 
 **Types:**
 ```typescript
-interface User {
-  id: string;
-  email: string;
-  // ... other user properties
-}
-
-interface Subscription {
-  id: string;
-  appId: string;
-  amountPerMonth: number;
-  status: 'active' | 'cancelled' | 'expired';
-  // ... other subscription properties
-}
-
 interface RedirectParams {
-  amountPerMonth: number;  // Subscription amount in POL
-  successUrl: string;      // Redirect URL after successful subscription
-  cancelUrl: string;       // Redirect URL if user cancels
-  signature: string;       // HMAC signature from your server
-  timestamp: number;       // Unix timestamp used in signature
-  additionalData?: string; // Optional additional context
-}
-```
-
-**Example:**
-```typescript
-const { user, deviceId, currentSubscription, redirectToConfirm } = useUtilsio();
-```
-
-## Architecture
-
-### Authentication Flow
-
-1. **Iframe Setup**: `UtilsioProvider` creates a hidden iframe to `utilsio.dev/embed`
-2. **Cookie Check**: Iframe checks for utilsio authentication cookies (HttpOnly, Secure)
-3. **PostMessage**: Iframe sends `{type: 'utilsio-auth', user, deviceId}` to parent
-4. **State Update**: Provider receives message and updates React state
-5. **Hook Access**: Components use `useUtilsio()` to access user data
-
-### Subscription Flow
-
-1. **User Action**: User clicks subscribe button in your app
-2. **Sign Request**: App calls your `/api/sign` endpoint with `deviceId`
-3. **Server Signs**: Your server derives key and creates HMAC signature
-4. **Return Signature**: Server returns `{signature, timestamp}` to client
-5. **Redirect**: Client calls `redirectToConfirm()` with subscription params
-6. **User Confirms**: User is redirected to `utilsio.dev/confirm` to approve
-7. **Stream Creation**: Utilsio creates Superfluid payment stream on Polygon
-8. **Callback**: User is redirected to your `successUrl` or `cancelUrl`
-
-### Security Model
-
-- **App Secret & Salt**: Never exposed to client, only used server-side
-- **Device ID**: Unique browser identifier, tied to user session
-- **HMAC Signature**: Proves request authenticity without exposing secrets
-- **Timestamp**: Prevents replay attacks (utilsio validates recency)
-- **Superfluid Streams**: Non-custodial, user maintains full control of funds
-
-## Example Use Cases
-
-### Content Subscription Platform
-```typescript
-// Gate premium content behind subscription
-if (!currentSubscription) {
-  return <SubscribePrompt />;
-}
-return <PremiumContent />;
-```
-
-### SaaS Tool Access
-```typescript
-// Enable features based on subscription tier
-const tier = currentSubscription?.amountPerMonth || 0;
-if (tier >= 10) {
-  return <ProFeatures />;
-}
-return <BasicFeatures />;
-```
-
-### API Rate Limits
-```typescript
-// Server-side: Verify subscription before processing API request
-if (!userHasActiveSubscription) {
-  return Response.json({ error: 'Subscription required' }, { status: 402 });
+  appId: string;
+  appName: string;
+  amountPerDay: string; // POL per day as string
+  appUrl?: string;      // Required for Safari support
+  appLogo?: string;
+  nextSuccess: string;
+  nextCancelled: string;
 }
 ```
 
 ## Troubleshooting
 
-### User is null even when logged in
+### Safari: deviceId is null
 
-**Cause:** Hidden iframe is blocked or cookies are not set.
+**Cause:** Safari blocks third-party cookies in iframes.
 
-**Solution:**
-- Ensure your app is served over HTTPS (required for cross-origin cookies)
-- Check browser console for iframe errors
-- Verify `appId` is correct in `UtilsioProvider`
+**Solution:** Pass `appUrl` to `redirectToConfirm()` and `cancelSubscription()`. The SDK will automatically use the server-side callback flow.
 
 ### Signature verification fails
 
-**Cause:** Mismatch between client timestamp/deviceId and server signature.
+**Cause:** Mismatch in signature generation.
 
 **Solution:**
-- Ensure you're using the exact same `deviceId` from `useUtilsio()`
-- Use `nowUnixSeconds()` for timestamp generation
-- Verify `appSecret` and `salt` are correct in environment variables
+- Ensure `additionalData` matches on both client and server
+- Use the same `timestamp` value
+- Verify `appSecret` and `salt` are correct
 
 ### Subscription not showing after confirmation
 
-**Cause:** Superfluid stream creation is pending or failed.
-
-**Solution:**
-- Call `refresh()` from `useUtilsio()` to manually update subscription state
-- Check network requests for subscription data
-- Verify user has sufficient POL balance for stream creation
+**Solution:** Call `refresh()` from `useUtilsio()` to manually update subscription state.
 
 ## License
 
@@ -385,6 +340,4 @@ Apache-2.0
 
 - **Documentation**: [utilsio.dev/docs](https://utilsio.dev/docs)
 - **Template**: [github.com/utilsio/templates](https://github.com/utilsio/templates)
-- **SDK Repository**: [github.com/utilsio/sdks](https://github.com/utilsio/sdks)
-- **npm Package**: [@utilsio/react](https://www.npmjs.com/package/@utilsio/react)
 - **Issues**: [github.com/utilsio/sdks/issues](https://github.com/utilsio/sdks/issues)

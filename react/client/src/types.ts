@@ -24,7 +24,7 @@ export type UtilsioState = {
 
 export type UtilsioClient = UtilsioState & {
 	refresh: () => Promise<void>;
-	cancelSubscription: (subscriptionIds: string[]) => Promise<void>;
+	cancelSubscription: (subscriptionIds: string[], appUrl?: string) => Promise<void>;
 	redirectToConfirm: (params: {
 		appId: string;
 		appName: string;
