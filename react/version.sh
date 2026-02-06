@@ -3,11 +3,11 @@
 # Version bump script for React SDK
 # Handles package.json version updates and creates commit
 #
-# Usage: ./install.sh patch|minor|major
+# Usage: ./version.sh patch|minor|major
 # Example:
-#   ./install.sh patch    # 0.1.3 → 0.1.4
-#   ./install.sh minor    # 0.1.3 → 0.2.0
-#   ./install.sh major    # 0.1.3 → 1.0.0
+#   ./version.sh patch    # 0.1.3 → 0.1.4
+#   ./version.sh minor    # 0.1.3 → 0.2.0
+#   ./version.sh major    # 0.1.3 → 1.0.0
 
 set -e  # Exit on any error
 
@@ -21,12 +21,12 @@ NC='\033[0m' # No Color
 # Check arguments
 if [ $# -ne 1 ]; then
     echo -e "${RED}Error: Invalid arguments${NC}"
-    echo "Usage: ./install.sh patch|minor|major"
+    echo "Usage: ./version.sh patch|minor|major"
     echo ""
     echo "Examples:"
-    echo "  ./install.sh patch    # Bump 0.1.3 → 0.1.4"
-    echo "  ./install.sh minor    # Bump 0.1.3 → 0.2.0"
-    echo "  ./install.sh major    # Bump 0.1.3 → 1.0.0"
+    echo "  ./version.sh patch    # Bump 0.1.3 → 0.1.4"
+    echo "  ./version.sh minor    # Bump 0.1.3 → 0.2.0"
+    echo "  ./version.sh major    # Bump 0.1.3 → 1.0.0"
     exit 1
 fi
 

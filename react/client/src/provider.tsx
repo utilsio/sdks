@@ -69,7 +69,7 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 
 		window.addEventListener("message", handler);
 		return () => window.removeEventListener("message", handler);
-	}, [baseUrl]);
+	}, []);
 
 	useEffect(() => {
 		if (!iframeRef.current) return;
@@ -77,7 +77,7 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 		if (!win) return;
 		// Send request to the iframe - use "*" to allow cross-origin communication
 		win.postMessage({type: "utilsio:embed:request"}, "*");
-	}, [embedReady, baseUrl]);
+	}, [embedReady]);
 
 	const getSubscription = useCallback(async (): Promise<UtilsioSubscription | null> => {
 		setError(null);
