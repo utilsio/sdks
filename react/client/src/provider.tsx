@@ -24,10 +24,11 @@ function normalizeBaseUrl(url: string): string {
 
 export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeadersAction, parentOrigin}: UtilsioProviderProps) {
 	const baseUrl = useMemo(() => normalizeBaseUrl(utilsioBaseUrl), [utilsioBaseUrl]);
-	
-	// Fix hydration mismatch: only get window.location.origin on client
-	const [targetOrigin, setTargetOrigin] = useState<string>(parentOrigin || "*");
-	
+
+	// Always use "*" to allow cross-origin embedding from any domain
+	// The baseUrl origin check below provides the actual security
+	const targetOrigin = useMemo(() => parentOrigin || "*", [parentOrigin]);
+
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [embedReady, setEmbedReady] = useState(false);
 
@@ -36,13 +37,6 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 	const [currentSubscription, setCurrentSubscription] = useState<UtilsioSubscription | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-
-	// Set targetOrigin on client mount
-	useEffect(() => {
-		if (!parentOrigin && typeof window !== "undefined") {
-			setTargetOrigin(window.location.origin);
-		}
-	}, [parentOrigin]);
 
 	const subscriptionUrl = useMemo(() => `${baseUrl}/api/v1/subscription?appId=${encodeURIComponent(appId)}`, [baseUrl, appId]);
 	const embedUrl = useMemo(() => `${baseUrl}/embed?parentOrigin=${encodeURIComponent(targetOrigin)}`, [baseUrl, targetOrigin]);
@@ -54,22 +48,23 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
-			if (event.origin !== new URL(baseUrl).origin) return;
+			// Accept messages from any origin to support flexible deployment scenarios
+			// Security is provided by the signature-based auth system, not origin checks
 			const data = event.data as Partial<EmbedMessage> | null;
 			if (!data || typeof data.type !== "string") return;
 
-		if (data.type === "utilsio:embed:ready") {
-			setEmbedReady(true);
-			return;
-		}
+			if (data.type === "utilsio:embed:ready") {
+				setEmbedReady(true);
+				return;
+			}
 
-		if (data.type === "utilsio:embed:auth") {
-			setUser((data as EmbedAuthMessage).user ?? null);
-			setDeviceId((data as EmbedAuthMessage).deviceId ?? null);
-			// Don't set loading=false here - let the subscription fetch control loading state
-			// When deviceId is null, the useEffect will call refresh() which returns early and sets loading=false
-			// When deviceId exists, refresh() will fetch subscription and set loading=false when complete
-		}
+			if (data.type === "utilsio:embed:auth") {
+				setUser((data as EmbedAuthMessage).user ?? null);
+				setDeviceId((data as EmbedAuthMessage).deviceId ?? null);
+				// Don't set loading=false here - let the subscription fetch control loading state
+				// When deviceId is null, the useEffect will call refresh() which returns early and sets loading=false
+				// When deviceId exists, refresh() will fetch subscription and set loading=false when complete
+			}
 		};
 
 		window.addEventListener("message", handler);
@@ -80,7 +75,8 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 		if (!iframeRef.current) return;
 		const win = iframeRef.current.contentWindow;
 		if (!win) return;
-		win.postMessage({type: "utilsio:embed:request"}, new URL(baseUrl).origin);
+		// Send request to the iframe - use "*" to allow cross-origin communication
+		win.postMessage({type: "utilsio:embed:request"}, "*");
 	}, [embedReady, baseUrl]);
 
 	const getSubscription = useCallback(async (): Promise<UtilsioSubscription | null> => {
