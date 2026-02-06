@@ -131,30 +131,43 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 		}
 	}, [getSubscription]);
 
-	const cancelSubscription = useCallback(async (subscriptionIds: string[]): Promise<void> => {
+	const cancelSubscription = useCallback(async (subscriptionIds: string[], appUrl?: string): Promise<void> => {
 		setError(null);
-		if (!deviceId || !user) {
+		if (!user) {
 			throw new Error("User must be authenticated to cancel subscription");
 		}
 
-		// Sort subscription IDs for signature consistency (required by backend)
-		const additionalData = [...subscriptionIds].sort().join(",");
-		const {signature, timestamp} = await getAuthHeadersAction({deviceId, additionalData});
+		const headers: HeadersInit = {
+			"Content-Type": "application/json",
+		};
+
+		const bodyData: Record<string, unknown> = {
+			userId: user.id,
+			appId,
+			subscriptionIds,
+		};
+
+		// If deviceId is available, generate signature client-side (normal flow)
+		if (deviceId) {
+			const additionalData = [...subscriptionIds].sort().join(",");
+			const {signature, timestamp} = await getAuthHeadersAction({deviceId, additionalData});
+			headers["X-utilsio-Signature"] = signature;
+			headers["X-utilsio-Timestamp"] = timestamp;
+			bodyData.deviceId = deviceId;
+		} else if (appUrl) {
+			// Safari fallback: server will read deviceId from cookies and make callback for signature
+			const callbackUrl = `${appUrl}/api/signature-callback`;
+			bodyData.signatureCallbackUrl = callbackUrl;
+			bodyData.useSafariFallback = true; // Explicit opt-in for Safari workaround
+		} else {
+			throw new Error("Either deviceId or appUrl is required to cancel subscription");
+		}
 
 		const res = await fetch(`${baseUrl}/api/v1/subscription`, {
 			method: "DELETE",
-			headers: {
-				"Content-Type": "application/json",
-				"X-utilsio-Signature": signature,
-				"X-utilsio-Timestamp": timestamp,
-			},
+			headers,
 			credentials: "include",
-			body: JSON.stringify({
-				userId: user.id,
-				deviceId,
-				appId,
-				subscriptionIds,
-			}),
+			body: JSON.stringify(bodyData),
 		});
 
 		if (!res.ok) {
@@ -190,7 +203,7 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 	}) => {
 		// Safari fallback: If no deviceId, use init flow
 		if (!deviceId) {
-			const initUrl = new URL(`${baseUrl}/api/v1/subscribe/init`);
+			const initUrl = new URL(`${baseUrl}/api/v1/subscription/init`);
 			initUrl.searchParams.set("appId", params.appId);
 			initUrl.searchParams.set("appName", params.appName);
 			initUrl.searchParams.set("amountPerDay", params.amountPerDay);

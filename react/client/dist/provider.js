@@ -27,18 +27,14 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         const handler = (event) => {
             // Accept messages from any origin to support flexible deployment scenarios
             // Security is provided by the signature-based auth system, not origin checks
-            console.log("[UtilsioProvider] Received message:", event.data, "from origin:", event.origin);
             const data = event.data;
             if (!data || typeof data.type !== "string")
                 return;
-            console.log("[UtilsioProvider] Processing message type:", data.type);
             if (data.type === "utilsio:embed:ready") {
-                console.log("[UtilsioProvider] Embed is ready!");
                 setEmbedReady(true);
                 return;
             }
             if (data.type === "utilsio:embed:auth") {
-                console.log("[UtilsioProvider] Received auth data:", data);
                 setUser(data.user ?? null);
                 setDeviceId(data.deviceId ?? null);
                 // Don't set loading=false here - let the subscription fetch control loading state
@@ -50,14 +46,12 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         return () => window.removeEventListener("message", handler);
     }, []);
     useEffect(() => {
-        console.log("[UtilsioProvider] embedReady:", embedReady, "iframeRef:", !!iframeRef.current);
         if (!iframeRef.current)
             return;
         const win = iframeRef.current.contentWindow;
         if (!win)
             return;
         // Send request to the iframe - use "*" to allow cross-origin communication
-        console.log("[UtilsioProvider] Sending request to embed iframe");
         win.postMessage({ type: "utilsio:embed:request" }, "*");
     }, [embedReady]);
     const getSubscription = useCallback(async () => {
@@ -107,28 +101,41 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
             setLoading(false);
         }
     }, [getSubscription]);
-    const cancelSubscription = useCallback(async (subscriptionIds) => {
+    const cancelSubscription = useCallback(async (subscriptionIds, appUrl) => {
         setError(null);
-        if (!deviceId || !user) {
+        if (!user) {
             throw new Error("User must be authenticated to cancel subscription");
         }
-        // Sort subscription IDs for signature consistency (required by backend)
-        const additionalData = [...subscriptionIds].sort().join(",");
-        const { signature, timestamp } = await getAuthHeadersAction({ deviceId, additionalData });
+        const headers = {
+            "Content-Type": "application/json",
+        };
+        const bodyData = {
+            userId: user.id,
+            appId,
+            subscriptionIds,
+        };
+        // If deviceId is available, generate signature client-side (normal flow)
+        if (deviceId) {
+            const additionalData = [...subscriptionIds].sort().join(",");
+            const { signature, timestamp } = await getAuthHeadersAction({ deviceId, additionalData });
+            headers["X-utilsio-Signature"] = signature;
+            headers["X-utilsio-Timestamp"] = timestamp;
+            bodyData.deviceId = deviceId;
+        }
+        else if (appUrl) {
+            // Safari fallback: server will read deviceId from cookies and make callback for signature
+            const callbackUrl = `${appUrl}/api/signature-callback`;
+            bodyData.signatureCallbackUrl = callbackUrl;
+            bodyData.useSafariFallback = true; // Explicit opt-in for Safari workaround
+        }
+        else {
+            throw new Error("Either deviceId or appUrl is required to cancel subscription");
+        }
         const res = await fetch(`${baseUrl}/api/v1/subscription`, {
             method: "DELETE",
-            headers: {
-                "Content-Type": "application/json",
-                "X-utilsio-Signature": signature,
-                "X-utilsio-Timestamp": timestamp,
-            },
+            headers,
             credentials: "include",
-            body: JSON.stringify({
-                userId: user.id,
-                deviceId,
-                appId,
-                subscriptionIds,
-            }),
+            body: JSON.stringify(bodyData),
         });
         if (!res.ok) {
             const text = await res.text();
@@ -149,9 +156,25 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         void refresh();
     }, [deviceId, refresh]);
     const redirectToConfirm = useCallback(async (params) => {
-        if (!deviceId || !user) {
-            throw new Error("User must be authenticated to subscribe");
+        // Safari fallback: If no deviceId, use init flow
+        if (!deviceId) {
+            const initUrl = new URL(`${baseUrl}/api/v1/subscription/init`);
+            initUrl.searchParams.set("appId", params.appId);
+            initUrl.searchParams.set("appName", params.appName);
+            initUrl.searchParams.set("amountPerDay", params.amountPerDay);
+            if (params.appUrl)
+                initUrl.searchParams.set("appUrl", params.appUrl);
+            if (params.appLogo)
+                initUrl.searchParams.set("appLogo", params.appLogo);
+            initUrl.searchParams.set("nextSuccess", params.nextSuccess);
+            initUrl.searchParams.set("nextCancelled", params.nextCancelled);
+            // Callback URL for signature generation
+            const callbackUrl = `${params.appUrl}/api/signature-callback`;
+            initUrl.searchParams.set("signatureCallbackUrl", callbackUrl);
+            window.location.href = initUrl.toString();
+            return;
         }
+        // Normal flow with deviceId (existing code)
         // Get signature for the subscription request with amountPerDay as additional data
         const { signature, timestamp } = await getAuthHeadersAction({
             deviceId,
@@ -171,7 +194,7 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         url.searchParams.set("nextSuccess", params.nextSuccess);
         url.searchParams.set("nextCancelled", params.nextCancelled);
         window.location.href = url.toString();
-    }, [baseUrl, deviceId, user, getAuthHeadersAction]);
+    }, [baseUrl, deviceId, getAuthHeadersAction]);
     const value = useMemo(() => ({
         loading,
         user,
