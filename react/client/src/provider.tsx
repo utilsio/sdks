@@ -192,10 +192,26 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 		nextSuccess: string;
 		nextCancelled: string;
 	}) => {
-		if (!deviceId || !user) {
-			throw new Error("User must be authenticated to subscribe");
+		// Safari fallback: If no deviceId, use init flow
+		if (!deviceId) {
+			const initUrl = new URL(`${baseUrl}/api/v1/subscribe/init`);
+			initUrl.searchParams.set("appId", params.appId);
+			initUrl.searchParams.set("appName", params.appName);
+			initUrl.searchParams.set("amountPerDay", params.amountPerDay);
+			if (params.appUrl) initUrl.searchParams.set("appUrl", params.appUrl);
+			if (params.appLogo) initUrl.searchParams.set("appLogo", params.appLogo);
+			initUrl.searchParams.set("nextSuccess", params.nextSuccess);
+			initUrl.searchParams.set("nextCancelled", params.nextCancelled);
+
+			// Callback URL for signature generation
+			const callbackUrl = `${params.appUrl}/api/signature-callback`;
+			initUrl.searchParams.set("signatureCallbackUrl", callbackUrl);
+
+			window.location.href = initUrl.toString();
+			return;
 		}
 
+		// Normal flow with deviceId (existing code)
 		// Get signature for the subscription request with amountPerDay as additional data
 		const {signature, timestamp} = await getAuthHeadersAction({
 			deviceId,
@@ -214,7 +230,7 @@ export function UtilsioProvider({children, utilsioBaseUrl, appId, getAuthHeaders
 		url.searchParams.set("nextSuccess", params.nextSuccess);
 		url.searchParams.set("nextCancelled", params.nextCancelled);
 		window.location.href = url.toString();
-	}, [baseUrl, deviceId, user, getAuthHeadersAction]);
+	}, [baseUrl, deviceId, getAuthHeadersAction]);
 
 	const value: UtilsioClient = useMemo(() => ({
 		loading,
