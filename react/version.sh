@@ -43,16 +43,6 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}React SDK Version Bump ($VERSION_TYPE)${NC}"
 echo -e "${BLUE}========================================${NC}"
 
-# Step 1: Check git status
-echo -e "\n${YELLOW}[1/4]${NC} Checking git status..."
-if [ -n "$(git status --porcelain)" ]; then
-    echo -e "${RED}Error: Working directory is not clean${NC}"
-    echo "Please commit or stash all changes first"
-    git status
-    exit 1
-fi
-echo -e "${GREEN}✓ Working directory clean${NC}"
-
 # Step 2: Read current version
 echo -e "\n${YELLOW}[2/4]${NC} Reading current version..."
 if [ ! -f "package.json" ]; then
@@ -107,9 +97,8 @@ if [ -f "package-lock.json" ]; then
 fi
 
 # Create git commit
-git add package.json
-[ -f "package-lock.json" ] && git add package-lock.json
-git commit -m "chore(react): bump version to $NEW_VERSION"
+git add -A
+git commit -m "chore: bump version to $NEW_VERSION"
 
 echo -e "${GREEN}✓ Updated package.json to $NEW_VERSION${NC}"
 echo -e "${GREEN}✓ Created commit${NC}"

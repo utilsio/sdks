@@ -243,8 +243,8 @@ Signs an API request with HMAC-SHA256.
 - `appHashHex: string` - Derived key from `deriveAppHashHex()`
 - `deviceId: string` - User's device ID
 - `appId: string` - Your public app ID
-- `timestamp: number` - Unix timestamp in milliseconds
-- `additionalData?: string` - Optional additional context (e.g., amountPerDay or subscriptionIds)
+- `timestamp: number` - Unix timestamp in seconds
+- `additionalData?: string` - Optional additional context (e.g., amountPerDay or sorted list of userId and subscriptionIds)
 
 **Returns:** `string` - Hex-encoded HMAC signature
 
