@@ -37,7 +37,7 @@ export async function getAuthHeadersAction(input: {
   deviceId: string;
   additionalData?: string;
 }) {
-  const timestamp = Date.now();
+  const timestamp = Math.floor(Date.now() / 1000);
 
   const signature = signRequest({
     appHashHex,
@@ -253,7 +253,7 @@ const signature = signRequest({
   appHashHex,
   deviceId,
   appId: process.env.NEXT_PUBLIC_UTILSIO_APP_ID!,
-  timestamp: Date.now(),
+  timestamp: Math.floor(Date.now() / 1000),
   additionalData: "1", // amountPerDay for subscribe
 });
 ```

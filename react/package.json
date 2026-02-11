@@ -39,7 +39,7 @@
     "build:client": "tsc -p client/tsconfig.build.json",
     "clean": "rm -rf server/dist client/dist",
     "pack:local": "bun run build && bun pm pack",
-    "update-template": "bun run pack:local && mv utilsio-react-*.tgz ../../templates/nextjs/utilsio-react-latest.tgz",
+    "update-template": "bun run pack:local && mv utilsio-react-*.tgz ../../templates/nextjs/utilsio-react-latest.tgz && cd ../../templates/nextjs && bun run use:local && rm -rf node_modules/.bun/@utilsio && bun install",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {

@@ -116,7 +116,7 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         };
         // If deviceId is available, generate signature client-side (normal flow)
         if (deviceId) {
-            const additionalData = [...subscriptionIds].sort().join(",");
+            const additionalData = [user.id, ...subscriptionIds].sort().join(",");
             const { signature, timestamp } = await getAuthHeadersAction({ deviceId, additionalData });
             headers["X-utilsio-Signature"] = signature;
             headers["X-utilsio-Timestamp"] = timestamp;
@@ -124,8 +124,7 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         }
         else if (appUrl) {
             // Safari fallback: server will read deviceId from cookies and make callback for signature
-            const callbackUrl = `${appUrl}/api/signature-callback`;
-            bodyData.signatureCallbackUrl = callbackUrl;
+            bodyData.signatureCallbackUrl = `${appUrl}/api/signature-callback`;
             bodyData.useSafariFallback = true; // Explicit opt-in for Safari workaround
         }
         else {
@@ -143,7 +142,13 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         }
         const payload = (await res.json());
         if (!payload.success) {
-            throw new Error(payload.error || "Failed to cancel subscription");
+            // Extract error from results array
+            const errors = payload.results
+                ?.filter(r => !r.success)
+                .map(r => r.error)
+                .filter(Boolean);
+            const errorMsg = errors?.[0] || payload.error || "Failed to cancel subscription";
+            throw new Error(errorMsg);
         }
         // Refresh subscription state after successful cancellation
         await refresh();
