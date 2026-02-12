@@ -43,7 +43,6 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}React SDK Version Bump ($VERSION_TYPE)${NC}"
 echo -e "${BLUE}========================================${NC}"
 
-# Step 2: Read current version
 echo -e "\n${YELLOW}[2/4]${NC} Reading current version..."
 if [ ! -f "package.json" ]; then
     echo -e "${RED}Error: package.json not found${NC}"
@@ -58,7 +57,6 @@ fi
 
 echo -e "${GREEN}✓ Current version: $CURRENT_VERSION${NC}"
 
-# Step 3: Calculate new version
 echo -e "\n${YELLOW}[3/4]${NC} Calculating new version..."
 
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -85,7 +83,6 @@ NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 
 echo -e "${GREEN}✓ Version bump: $CURRENT_VERSION → $NEW_VERSION${NC}"
 
-# Step 4: Update package.json and create commit
 echo -e "\n${YELLOW}[4/4]${NC} Updating package.json and creating commit..."
 
 # Update version in package.json using sed (non-destructive)
