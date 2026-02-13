@@ -7,7 +7,6 @@ export type UtilsioScryptParams = {
 export type DeriveKeyInput = {
     appSecret: string;
     salt: string;
-    params?: Partial<UtilsioScryptParams>;
 };
 export type SignRequestInput = {
     deviceId: string;
@@ -21,7 +20,7 @@ export declare const DEFAULT_SCRYPT_PARAMS: UtilsioScryptParams;
  * Exported for use in server-side authentication workflows
  * Used to create deterministic hashes from app secrets for secure verification
  */
-export declare function deriveAppHashHex({ appSecret, salt, params }: DeriveKeyInput): string;
+export declare function deriveAppHashHex({ appSecret, salt }: DeriveKeyInput): string;
 export declare function buildSignatureMessage({ deviceId, appId, timestamp, additionalData }: SignRequestInput): string;
 /**
  * Signs a request with HMAC-SHA256

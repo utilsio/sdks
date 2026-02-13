@@ -105,28 +105,40 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
             setLoading(false);
         }
     }, [getSubscription]);
-    const cancelSubscription = useCallback(async (subscriptionIds) => {
+    const cancelSubscription = useCallback(async (subscriptionIds, appUrl) => {
         setError(null);
-        if (!deviceId || !user) {
+        if (!user) {
             throw new Error("User must be authenticated to cancel subscription");
         }
-        // Sort subscription IDs for signature consistency (required by backend)
-        const additionalData = [...subscriptionIds].sort().join(",");
-        const { signature, timestamp } = await getAuthHeadersAction({ deviceId, additionalData });
+        const headers = {
+            "Content-Type": "application/json",
+        };
+        const bodyData = {
+            userId: user.id,
+            appId,
+            subscriptionIds,
+        };
+        // If deviceId is available, generate signature client-side (normal flow)
+        if (deviceId) {
+            const additionalData = [user.id, ...subscriptionIds].sort().join(",");
+            const { signature, timestamp } = await getAuthHeadersAction({ deviceId, additionalData });
+            headers["X-utilsio-Signature"] = signature;
+            headers["X-utilsio-Timestamp"] = timestamp;
+            bodyData.deviceId = deviceId;
+        }
+        else if (appUrl) {
+            // Safari fallback: server will read deviceId from cookies and make callback for signature
+            bodyData.signatureCallbackUrl = `${appUrl}/api/signature-callback`;
+            bodyData.useSafariFallback = true; // Explicit opt-in for Safari workaround
+        }
+        else {
+            throw new Error("Either deviceId or appUrl is required to cancel subscription");
+        }
         const res = await fetch(`${baseUrl}/api/v1/subscription`, {
             method: "DELETE",
-            headers: {
-                "Content-Type": "application/json",
-                "X-utilsio-Signature": signature,
-                "X-utilsio-Timestamp": timestamp,
-            },
+            headers,
             credentials: "include",
-            body: JSON.stringify({
-                userId: user.id,
-                deviceId,
-                appId,
-                subscriptionIds,
-            }),
+            body: JSON.stringify(bodyData),
         });
         if (!res.ok) {
             const text = await res.text();
@@ -134,7 +146,13 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         }
         const payload = (await res.json());
         if (!payload.success) {
-            throw new Error(payload.error || "Failed to cancel subscription");
+            // Extract error from results array
+            const errors = payload.results
+                ?.filter(r => !r.success)
+                .map(r => r.error)
+                .filter(Boolean);
+            const errorMsg = errors?.[0] || payload.error || "Failed to cancel subscription";
+            throw new Error(errorMsg);
         }
         // Refresh subscription state after successful cancellation
         await refresh();
@@ -147,9 +165,25 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         void refresh();
     }, [deviceId, refresh]);
     const redirectToConfirm = useCallback(async (params) => {
-        if (!deviceId || !user) {
-            throw new Error("User must be authenticated to subscribe");
+        // Safari fallback: If no deviceId, use init flow
+        if (!deviceId) {
+            const initUrl = new URL(`${baseUrl}/api/v1/subscription/init`);
+            initUrl.searchParams.set("appId", params.appId);
+            initUrl.searchParams.set("appName", params.appName);
+            initUrl.searchParams.set("amountPerDay", params.amountPerDay);
+            if (params.appUrl)
+                initUrl.searchParams.set("appUrl", params.appUrl);
+            if (params.appLogo)
+                initUrl.searchParams.set("appLogo", params.appLogo);
+            initUrl.searchParams.set("nextSuccess", params.nextSuccess);
+            initUrl.searchParams.set("nextCancelled", params.nextCancelled);
+            // Callback URL for signature generation
+            const callbackUrl = `${params.appUrl}/api/signature-callback`;
+            initUrl.searchParams.set("signatureCallbackUrl", callbackUrl);
+            window.location.href = initUrl.toString();
+            return;
         }
+        // Normal flow with deviceId (existing code)
         // Get signature for the subscription request with amountPerDay as additional data
         const { signature, timestamp } = await getAuthHeadersAction({
             deviceId,
@@ -169,7 +203,7 @@ export function UtilsioProvider({ children, utilsioBaseUrl, appId, getAuthHeader
         url.searchParams.set("nextSuccess", params.nextSuccess);
         url.searchParams.set("nextCancelled", params.nextCancelled);
         window.location.href = url.toString();
-    }, [baseUrl, deviceId, user, getAuthHeadersAction]);
+    }, [baseUrl, deviceId, getAuthHeadersAction]);
     const value = useMemo(() => ({
         loading,
         user,
