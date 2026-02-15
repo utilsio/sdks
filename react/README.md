@@ -133,7 +133,7 @@ export default function Page() {
     redirectToConfirm({
       appId: process.env.NEXT_PUBLIC_UTILSIO_APP_ID!,
       appName: "My App",
-      amountPerDay: "1", // 1 POL per day
+      amountPerDay: "1", // 1 USD per day
       appUrl,
       nextSuccess: `${appUrl}/success`,
       nextCancelled: `${appUrl}/cancelled`,
@@ -160,14 +160,14 @@ export default function Page() {
     <div>
       {currentSubscription ? (
         <div>
-          <p>Active: {currentSubscription.amountPerDay} POL/day</p>
+          <p>Active: {currentSubscription.amountPerDay} USD/day</p>
           <button onClick={handleCancel} disabled={cancelling}>
             {cancelling ? 'Cancelling...' : 'Cancel Subscription'}
           </button>
         </div>
       ) : (
         <button onClick={handleSubscribe}>
-          Subscribe (1 POL/day)
+          Subscribe (1 USD/day)
         </button>
       )}
     </div>
@@ -303,7 +303,7 @@ Hook that provides utilsio state and actions. Must be used within a `UtilsioProv
 interface RedirectParams {
   appId: string;
   appName: string;
-  amountPerDay: string; // POL per day as string
+  amountPerDay: string; // USD per day as string
   appUrl?: string;      // Required for Safari support
   appLogo?: string;
   nextSuccess: string;
